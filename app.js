@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import {transporter} from './mailer.js';
 import axios from 'axios';
+import Joi from 'joi';
 dotenv.config();
 
 const app = express();
@@ -14,8 +15,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors()); 
 app.use(express.static('public'));
-
-
 
 const sendEmail = async (to, subject, message) => {
 
@@ -47,9 +46,28 @@ const fetchExchangeRates = async () => {
     }
 };
 
+const formSchema = Joi.object({
+    correos: Joi.string().required(),
+    asunto: Joi.string().required(),
+    mensaje: Joi.string().required()
+});
+
 app.post('/enviar-correo', async (req, res) => {
     const { correos, asunto, mensaje } = req.body;
     const listaCorreos = correos.split(',').map(correo => correo.trim());
+
+    const correosSchema = Joi.array().items(Joi.string().email());
+
+    const { error: correosError } = correosSchema.validate(listaCorreos);
+    if (correosError) {
+        return res.status(400).send('Por favor, ingresa direcciones de correo válidas.');
+    }
+    
+    const { error: formError } = formSchema.validate({ correos, asunto, mensaje });
+
+    if (formError) {
+        return res.status(400).send(formError.details[0].message);
+    }
 
     try {
         const exchangeRates = await fetchExchangeRates();
